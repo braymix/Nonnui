@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EasyHome Senior</string>
+    <string name="ime_name">Tastiera ABCD</string>
+    <string name="ime_subtype_name">Italiano (ABCD)</string>
+</resources>
