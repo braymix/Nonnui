@@ -11,12 +11,13 @@ import androidx.compose.runtime.remember
 @Composable
 fun rememberAppIcon(
     packageName: String,
+    shortcutId: String?,
     sizePx: Int,
-    loader: suspend (String, Int) -> Bitmap?,
+    loader: suspend (String, String?, Int) -> Bitmap?,
 ): Bitmap? {
-    val state: MutableState<Bitmap?> = remember(packageName, sizePx) { mutableStateOf(null) }
-    LaunchedEffect(packageName, sizePx) {
-        state.value = if (packageName.isNotEmpty()) loader(packageName, sizePx) else null
+    val state: MutableState<Bitmap?> = remember(packageName, shortcutId, sizePx) { mutableStateOf(null) }
+    LaunchedEffect(packageName, shortcutId, sizePx) {
+        state.value = if (packageName.isNotEmpty()) loader(packageName, shortcutId, sizePx) else null
     }
     return state.value
 }

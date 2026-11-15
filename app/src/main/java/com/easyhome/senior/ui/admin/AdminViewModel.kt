@@ -9,6 +9,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.easyhome.senior.data.config.ConfigJsonSerializer
 import com.easyhome.senior.di.AppContainer
 import com.easyhome.senior.domain.model.ActionType
+import com.easyhome.senior.domain.model.AppShortcut
+import com.easyhome.senior.domain.model.BrightnessMode
 import com.easyhome.senior.domain.model.AppTheme
 import com.easyhome.senior.domain.model.ButtonPalette
 import com.easyhome.senior.domain.model.HomeButton
@@ -16,7 +18,9 @@ import com.easyhome.senior.domain.model.InstalledApp
 import com.easyhome.senior.domain.model.LauncherConfig
 import com.easyhome.senior.domain.model.OverlayPosition
 import com.easyhome.senior.domain.model.VibrationIntensity
+import com.easyhome.senior.system.ActionLauncher
 import com.easyhome.senior.system.BackupSharer
+import com.easyhome.senior.system.ContactResolver
 import com.easyhome.senior.system.PermissionStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +32,6 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
 import java.util.UUID
 
 enum class WizardStep(val title: String) {
@@ -48,6 +51,9 @@ data class AdminUiState(
     val permissions: PermissionStatus = PermissionStatus(),
     val message: String? = null,
     val pendingImport: LauncherConfig? = null,
+    val shortcuts: List<AppShortcut> = emptyList(),
+    val shortcutsLoading: Boolean = false,
+    val canUseShortcuts: Boolean = false,
 ) {
     val installedPackages: Set<String> get() = apps.mapTo(HashSet()) { it.packageName }
     val exportJson: String get() = ConfigJsonSerializer.toJson(config)
@@ -60,6 +66,9 @@ private data class LocalState(
     val permissions: PermissionStatus = PermissionStatus(),
     val message: String? = null,
     val pendingImport: LauncherConfig? = null,
+    val shortcuts: List<AppShortcut> = emptyList(),
+    val shortcutsLoading: Boolean = false,
+    val canUseShortcuts: Boolean = false,
 )
 
 /**
@@ -81,6 +90,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
             permissions = l.permissions,
             message = l.message,
             pendingImport = l.pendingImport,
+            shortcuts = l.shortcuts,
+            shortcutsLoading = l.shortcutsLoading,
+            canUseShortcuts = l.canUseShortcuts,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AdminUiState())
 
@@ -135,25 +147,33 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 showMessage("Impossibile leggere il contatto scelto.")
                 return@launch
             }
-            var dataId: Long? = null
-            if (type == ActionType.WHATSAPP_VIDEO) {
-                dataId = withContext(Dispatchers.IO) { resolver.findWhatsAppVideoDataId(picked.contactId) }
-                if (dataId == null) {
-                    showMessage(
-                        if (resolver.hasContactsPermission()) {
-                            "${picked.name} non risulta su WhatsApp: il pulsante aprirà la sua chat."
-                        } else {
-                            "Permesso Contatti mancante: il pulsante aprirà la chat WhatsApp."
-                        },
-                    )
-                }
+            val mime = ContactResolver.whatsAppMimeFor(type)
+            val dataId = mime?.let { withContext(Dispatchers.IO) { resolver.findWhatsAppDataId(picked.contactId, it) } }
+            if (mime != null && dataId == null) {
+                showMessage(
+                    if (resolver.hasContactsPermission()) {
+                        "${picked.name} non risulta su WhatsApp da questo telefono: il pulsante aprirà la chat tramite numero."
+                    } else {
+                        "Permesso Contatti mancante: il pulsante aprirà la chat WhatsApp tramite numero."
+                    },
+                )
             }
-            val prefix = if (type == ActionType.WHATSAPP_VIDEO) "VIDEO" else "CHIAMA"
+            if (type == ActionType.TELEGRAM_CHAT && container.actionLauncher.telegramPackage() == null) {
+                showMessage("Attenzione: Telegram non è installato su questo telefono.")
+            }
+            val prefix = when (type) {
+                ActionType.PHONE_CALL -> "CHIAMA"
+                ActionType.WHATSAPP_VIDEO -> "VIDEO"
+                ActionType.WHATSAPP_VOICE -> "VOCE"
+                ActionType.WHATSAPP_CHAT -> "SCRIVI A"
+                ActionType.TELEGRAM_CHAT -> "TELEGRAM"
+                else -> ""
+            }
             addButton { config ->
                 HomeButton(
                     id = UUID.randomUUID().toString(),
                     type = type,
-                    label = LauncherConfig.normalizeLabel("$prefix ${picked.name}"),
+                    label = LauncherConfig.normalizeLabel("$prefix ${picked.name}".trim()),
                     colorArgb = ButtonPalette.next(config.buttons),
                     contactName = picked.name,
                     phoneNumber = picked.phoneNumber,
@@ -163,15 +183,70 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
         }
     }
 
-    private fun addButton(factory: (LauncherConfig) -> HomeButton) {
+    /** Gruppo WhatsApp (link di invito), chat/gruppo/canale Telegram (t.me/...), sito web. */
+    fun addLink(label: String, rawLink: String) {
+        val link = ActionLauncher.normalizeLink(rawLink)
+        val uri = android.net.Uri.parse(link)
+        if (rawLink.isBlank() || uri.scheme.isNullOrBlank() || (uri.scheme in listOf("http", "https") && uri.host.isNullOrBlank())) {
+            showMessage("Il collegamento non è valido. Esempio: https://chat.whatsapp.com/AbCdEf...")
+            return
+        }
+        addButton { config ->
+            HomeButton(
+                id = UUID.randomUUID().toString(),
+                type = ActionType.LINK,
+                label = LauncherConfig.normalizeLabel(label.ifBlank { "APRI" }),
+                colorArgb = ButtonPalette.next(config.buttons),
+                packageName = ActionLauncher.packageForLink(link),
+                link = link,
+            )
+        }
+    }
+
+    fun loadShortcuts() {
         viewModelScope.launch {
-            if (configRepository.config.first().isFull) {
-                showMessage("Massimo ${LauncherConfig.MAX_BUTTONS} pulsanti: eliminane uno per aggiungerne un altro.")
-                return@launch
+            val repo = container.appsRepository
+            local.update { it.copy(shortcutsLoading = true, canUseShortcuts = repo.canUseShortcuts()) }
+            val list = repo.getShortcuts()
+            local.update { it.copy(shortcuts = list, shortcutsLoading = false, canUseShortcuts = repo.canUseShortcuts()) }
+        }
+    }
+
+    fun addShortcut(shortcut: AppShortcut) {
+        viewModelScope.launch {
+            addButtonNow { config ->
+                HomeButton(
+                    id = UUID.randomUUID().toString(),
+                    type = ActionType.SHORTCUT,
+                    label = LauncherConfig.normalizeLabel(shortcut.label),
+                    colorArgb = ButtonPalette.next(config.buttons),
+                    packageName = shortcut.packageName,
+                    shortcutId = shortcut.shortcutId,
+                )
             }
-            configRepository.update { c ->
-                if (c.isFull) c else c.copy(buttons = c.buttons + factory(c))
-            }
+            syncPinnedShortcuts(shortcut.packageName)
+        }
+    }
+
+    /** Le scorciatoie usate restano "fissate": WhatsApp/Telegram non le possono togliere dalla lista. */
+    private suspend fun syncPinnedShortcuts(packageName: String) {
+        val ids = configRepository.config.first().buttons
+            .filter { it.type == ActionType.SHORTCUT && it.packageName == packageName }
+            .mapNotNull { it.shortcutId }
+        container.appsRepository.setPinnedShortcuts(packageName, ids)
+    }
+
+    private fun addButton(factory: (LauncherConfig) -> HomeButton) {
+        viewModelScope.launch { addButtonNow(factory) }
+    }
+
+    private suspend fun addButtonNow(factory: (LauncherConfig) -> HomeButton) {
+        if (configRepository.config.first().isFull) {
+            showMessage("Hai raggiunto il massimo tecnico di ${LauncherConfig.MAX_BUTTONS} pulsanti.")
+            return
+        }
+        configRepository.update { c ->
+            if (c.isFull) c else c.copy(buttons = c.buttons + factory(c))
         }
     }
 
@@ -180,7 +255,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     fun updateColor(id: String, color: Long) = updateButton(id) { it.copy(colorArgb = color) }
 
     fun removeButton(id: String) = viewModelScope.launch {
+        val removed = configRepository.config.first().buttons.firstOrNull { it.id == id }
         configRepository.update { c -> c.copy(buttons = c.buttons.filterNot { it.id == id }) }
+        if (removed?.type == ActionType.SHORTCUT) removed.packageName?.let { syncPinnedShortcuts(it) }
     }
 
     fun moveButton(id: String, delta: Int) = viewModelScope.launch {
@@ -205,6 +282,16 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     fun setIconSize(dp: Int) = updateConfig { it.copy(iconSizeDp = dp) }
     fun setSound(enabled: Boolean) = updateConfig { it.copy(soundEnabled = enabled) }
     fun setOverlayPosition(position: OverlayPosition) = updateConfig { it.copy(overlayPosition = position) }
+    fun setColumns(columns: Int) = updateConfig { it.copy(columns = columns) }
+    fun setRowsPerPage(rows: Int) = updateConfig { it.copy(rowsPerPage = rows) }
+
+    fun setBrightnessMode(mode: BrightnessMode) = updateConfigAndApplyBrightness { it.copy(brightnessMode = mode) }
+    fun setBrightnessLevel(level: Int) = updateConfigAndApplyBrightness { it.copy(brightnessLevel = level) }
+
+    private fun updateConfigAndApplyBrightness(transform: (LauncherConfig) -> LauncherConfig) = viewModelScope.launch {
+        configRepository.update(transform)
+        container.brightnessController.applySystem(configRepository.config.first())
+    }
 
     fun setVibration(intensity: VibrationIntensity) {
         updateConfig { it.copy(vibration = intensity) }
@@ -261,8 +348,9 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
             val remapped = withContext(Dispatchers.IO) {
                 pending.copy(
                     buttons = pending.buttons.map { b ->
-                        if (b.type == ActionType.WHATSAPP_VIDEO) {
-                            b.copy(whatsappDataId = b.phoneNumber?.let { resolver.findWhatsAppVideoDataIdByNumber(it) })
+                        val mime = ContactResolver.whatsAppMimeFor(b.type)
+                        if (mime != null) {
+                            b.copy(whatsappDataId = b.phoneNumber?.let { resolver.findWhatsAppDataIdByNumber(it, mime) })
                         } else {
                             b
                         }
@@ -270,6 +358,8 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
                 )
             }
             configRepository.replace(remapped)
+            remapped.buttons.filter { it.type == ActionType.SHORTCUT }.mapNotNull { it.packageName }.distinct()
+                .forEach { syncPinnedShortcuts(it) }
             val missing = remapped.buttons.count {
                 it.type == ActionType.APP && it.packageName != null &&
                     !container.appsRepository.isInstalled(it.packageName)
@@ -292,13 +382,19 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
             initializer { AdminViewModel(container) }
         }
 
-        fun describe(button: HomeButton, apps: List<InstalledApp>): String = when (button.type) {
-            ActionType.APP -> {
-                val name = apps.firstOrNull { it.packageName == button.packageName }?.label
-                "Apre l'app ${name ?: button.packageName}"
+        fun describe(button: HomeButton, apps: List<InstalledApp>): String {
+            val who = listOfNotNull(button.contactName, button.phoneNumber?.let { "($it)" }).joinToString(" ")
+            fun appName(pkg: String?) = apps.firstOrNull { it.packageName == pkg }?.label ?: pkg.orEmpty()
+            return when (button.type) {
+                ActionType.APP -> "Apre l'app ${appName(button.packageName)}"
+                ActionType.PHONE_CALL -> "Chiamata telefonica a $who"
+                ActionType.WHATSAPP_VIDEO -> "Videochiamata WhatsApp a $who"
+                ActionType.WHATSAPP_VOICE -> "Chiamata vocale WhatsApp a $who"
+                ActionType.WHATSAPP_CHAT -> "Apre la chat WhatsApp di $who"
+                ActionType.TELEGRAM_CHAT -> "Apre la chat Telegram di $who"
+                ActionType.LINK -> "Apre il collegamento ${button.link}"
+                ActionType.SHORTCUT -> "Scorciatoia di ${appName(button.packageName)}"
             }
-            ActionType.PHONE_CALL -> "Chiama ${button.contactName ?: ""} (${button.phoneNumber})"
-            ActionType.WHATSAPP_VIDEO -> "Videochiamata WhatsApp a ${button.contactName ?: ""} (${button.phoneNumber})"
-        }.replace("  ", " ").trim().let { it.replaceFirstChar { c -> c.titlecase(Locale.ITALIAN) } }
+        }
     }
 }

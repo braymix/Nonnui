@@ -1,6 +1,7 @@
 package com.easyhome.senior.domain.repository
 
 import android.graphics.Bitmap
+import com.easyhome.senior.domain.model.AppShortcut
 import com.easyhome.senior.domain.model.BatteryStatus
 import com.easyhome.senior.domain.model.InstalledApp
 import com.easyhome.senior.domain.model.LauncherConfig
@@ -18,8 +19,19 @@ interface ConfigRepository {
 
 interface AppsRepository {
     suspend fun getLaunchableApps(): List<InstalledApp>
-    suspend fun loadIcon(packageName: String, sizePx: Int): Bitmap?
+
+    /** Icona dell'app o, se [shortcutId] è valorizzato, della scorciatoia. */
+    suspend fun loadIcon(packageName: String, shortcutId: String?, sizePx: Int): Bitmap?
     fun isInstalled(packageName: String): Boolean
+
+    /** True se il launcher può leggere/avviare le scorciatoie (cioè è il launcher predefinito). */
+    fun canUseShortcuts(): Boolean
+
+    /** Scorciatoie disponibili (chat recenti, gruppi, azioni rapide) di tutte le app installate. */
+    suspend fun getShortcuts(): List<AppShortcut>
+
+    /** Mantiene "fissate" le scorciatoie usate dai pulsanti, così non spariscono dalla lista dell'app. */
+    suspend fun setPinnedShortcuts(packageName: String, shortcutIds: List<String>)
 }
 
 interface DeviceStatusRepository {

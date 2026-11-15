@@ -11,3 +11,11 @@ data class BatteryStatus(val percent: Int, val isCharging: Boolean) {
 data class InstalledApp(val packageName: String, val label: String)
 
 data class PickedContact(val contactId: Long, val name: String, val phoneNumber: String)
+
+/** Scorciatoia pubblicata da un'app e leggibile dal launcher predefinito (LauncherApps). */
+data class AppShortcut(
+    val packageName: String,
+    val appLabel: String,
+    val shortcutId: String,
+    val label: String,
+)

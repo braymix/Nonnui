@@ -23,6 +23,10 @@ object ConfigJsonSerializer {
         put("soundEnabled", config.soundEnabled)
         put("vibration", config.vibration.name)
         put("overlayPosition", config.overlayPosition.name)
+        put("columns", config.columns)
+        put("rowsPerPage", config.rowsPerPage)
+        put("brightnessMode", config.brightnessMode.name)
+        put("brightnessLevel", config.brightnessLevel)
         put("buttons", buttonsToJsonArray(config.buttons))
     }.toString(2)
 
@@ -46,6 +50,10 @@ object ConfigJsonSerializer {
                 soundEnabled = root.optBoolean("soundEnabled", defaults.soundEnabled),
                 vibration = enumOrDefault(root.optString("vibration"), defaults.vibration),
                 overlayPosition = enumOrDefault(root.optString("overlayPosition"), defaults.overlayPosition),
+                columns = root.optInt("columns", defaults.columns),
+                rowsPerPage = root.optInt("rowsPerPage", defaults.rowsPerPage),
+                brightnessMode = enumOrDefault(root.optString("brightnessMode"), defaults.brightnessMode),
+                brightnessLevel = root.optInt("brightnessLevel", defaults.brightnessLevel),
             ).sanitized()
         } catch (e: JSONException) {
             throw IllegalArgumentException("Il backup è danneggiato: ${e.message}")
@@ -63,6 +71,8 @@ object ConfigJsonSerializer {
                 put("contactName", b.contactName ?: JSONObject.NULL)
                 put("phoneNumber", b.phoneNumber ?: JSONObject.NULL)
                 put("whatsappDataId", b.whatsappDataId ?: JSONObject.NULL)
+                put("link", b.link ?: JSONObject.NULL)
+                put("shortcutId", b.shortcutId ?: JSONObject.NULL)
             })
         }
     }
@@ -92,10 +102,18 @@ object ConfigJsonSerializer {
                 } else {
                     null
                 },
+                link = o.nullableString("link"),
+                shortcutId = o.nullableString("shortcutId"),
             )
             val valid = when (type) {
                 ActionType.APP -> !button.packageName.isNullOrBlank()
-                ActionType.PHONE_CALL, ActionType.WHATSAPP_VIDEO -> !button.phoneNumber.isNullOrBlank()
+                ActionType.PHONE_CALL,
+                ActionType.WHATSAPP_VIDEO,
+                ActionType.WHATSAPP_VOICE,
+                ActionType.WHATSAPP_CHAT,
+                ActionType.TELEGRAM_CHAT -> !button.phoneNumber.isNullOrBlank()
+                ActionType.LINK -> !button.link.isNullOrBlank()
+                ActionType.SHORTCUT -> !button.packageName.isNullOrBlank() && !button.shortcutId.isNullOrBlank()
             }
             if (valid) result += button
         }

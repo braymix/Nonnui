@@ -31,7 +31,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -63,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
@@ -75,6 +75,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import com.easyhome.senior.domain.model.ActionType
+import com.easyhome.senior.domain.model.AppShortcut
+import com.easyhome.senior.system.ContactResolver
 import com.easyhome.senior.domain.model.ButtonPalette
 import com.easyhome.senior.domain.model.HomeButton
 import com.easyhome.senior.domain.model.InstalledApp
@@ -91,11 +93,24 @@ class PickPhoneContact : ActivityResultContract<Unit, Uri?>() {
         if (resultCode == android.app.Activity.RESULT_OK) intent?.data else null
 }
 
+private enum class AddChoice(val title: String, val subtitle: String) {
+    APP("App", "Apre un'app installata (es. WhatsApp, Fotocamera)"),
+    PHONE("Chiamata a un contatto", "Telefonata diretta"),
+    WA_VIDEO("Videochiamata WhatsApp", "Videochiamata diretta a un contatto"),
+    WA_VOICE("Chiamata WhatsApp", "Chiamata vocale WhatsApp a un contatto"),
+    WA_CHAT("Chat WhatsApp di un contatto", "Apre direttamente la conversazione"),
+    TG_CHAT("Chat Telegram di un contatto", "Apre la conversazione Telegram tramite numero"),
+    SHORTCUT("Chat o gruppo (scorciatoia app)", "Chat e gruppi recenti di WhatsApp, Telegram e altre app"),
+    LINK("Gruppo tramite link", "Link di invito WhatsApp (chat.whatsapp.com) o Telegram (t.me)"),
+}
+
 @Composable
 fun ButtonsStep(state: AdminUiState, viewModel: AdminViewModel, iconLoader: IconLoader) {
     val context = LocalContext.current
+    var showAddMenu by rememberSaveable { mutableStateOf(false) }
     var showAppPicker by rememberSaveable { mutableStateOf(false) }
-    var showContactTypeDialog by rememberSaveable { mutableStateOf(false) }
+    var showShortcutPicker by rememberSaveable { mutableStateOf(false) }
+    var showLinkDialog by rememberSaveable { mutableStateOf(false) }
     var pendingContactType by rememberSaveable { mutableStateOf<ActionType?>(null) }
     var buttonToDelete by remember { mutableStateOf<HomeButton?>(null) }
 
@@ -112,29 +127,60 @@ fun ButtonsStep(state: AdminUiState, viewModel: AdminViewModel, iconLoader: Icon
 
     fun startContactFlow(type: ActionType) {
         pendingContactType = type
-        val permission = if (type == ActionType.PHONE_CALL) Manifest.permission.CALL_PHONE else Manifest.permission.READ_CONTACTS
-        if (ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED) {
+        val permission = when (type) {
+            ActionType.PHONE_CALL -> Manifest.permission.CALL_PHONE
+            ActionType.TELEGRAM_CHAT -> null
+            else -> Manifest.permission.READ_CONTACTS
+        }
+        if (permission == null ||
+            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+        ) {
             pickContact.launch(Unit)
         } else {
             requestPermission.launch(permission)
         }
     }
 
+    fun onChoice(choice: AddChoice) {
+        showAddMenu = false
+        when (choice) {
+            AddChoice.APP -> showAppPicker = true
+            AddChoice.PHONE -> startContactFlow(ActionType.PHONE_CALL)
+            AddChoice.WA_VIDEO -> startContactFlow(ActionType.WHATSAPP_VIDEO)
+            AddChoice.WA_VOICE -> startContactFlow(ActionType.WHATSAPP_VOICE)
+            AddChoice.WA_CHAT -> startContactFlow(ActionType.WHATSAPP_CHAT)
+            AddChoice.TG_CHAT -> startContactFlow(ActionType.TELEGRAM_CHAT)
+            AddChoice.SHORTCUT -> {
+                viewModel.loadShortcuts()
+                showShortcutPicker = true
+            }
+            AddChoice.LINK -> showLinkDialog = true
+        }
+    }
+
+    val config = state.config
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(
-            "Scegli da 1 a ${LauncherConfig.MAX_BUTTONS} pulsanti. Ogni modifica viene salvata subito.",
+            "Aggiungi tutti i pulsanti che servono. Se non entrano in una schermata, " +
+                "sulla Home compaiono i tasti AVANTI / INDIETRO (la disposizione si sceglie al passo 2).",
             style = MaterialTheme.typography.bodyLarge,
         )
-        LivePreview(state.config, iconLoader, Modifier.align(Alignment.CenterHorizontally))
+        LivePreview(config, iconLoader, Modifier.align(Alignment.CenterHorizontally))
+        Text(
+            "${config.buttons.size} pulsanti · ${config.pageCount} " +
+                (if (config.pageCount == 1) "schermata" else "schermate"),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
 
-        state.config.buttons.forEachIndexed { index, button ->
+        config.buttons.forEachIndexed { index, button ->
             ButtonEditorCard(
                 button = button,
                 index = index,
-                total = state.config.buttons.size,
+                total = config.buttons.size,
                 description = AdminViewModel.describe(button, state.apps),
-                notInstalled = button.type == ActionType.APP && !state.appsLoading &&
-                    button.packageName !in state.installedPackages,
+                notInstalled = (button.type == ActionType.APP || button.type == ActionType.SHORTCUT) &&
+                    !state.appsLoading && button.packageName !in state.installedPackages,
                 onLabelChange = { viewModel.updateLabel(button.id, it) },
                 onColorChange = { viewModel.updateColor(button.id, it) },
                 onMoveUp = { viewModel.moveButton(button.id, -1) },
@@ -143,26 +189,52 @@ fun ButtonsStep(state: AdminUiState, viewModel: AdminViewModel, iconLoader: Icon
             )
         }
 
-        if (state.config.isFull) {
-            Text(
-                "Hai raggiunto il massimo di ${LauncherConfig.MAX_BUTTONS} pulsanti.",
-                color = MaterialTheme.colorScheme.error,
-                fontWeight = FontWeight.Bold,
-            )
-        } else {
-            Button(onClick = { showAppPicker = true }, modifier = Modifier.fillMaxWidth().height(56.dp)) {
-                Icon(Icons.Filled.Add, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("AGGIUNGI APP")
+        Button(
+            onClick = { showAddMenu = true },
+            enabled = !config.isFull,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(60.dp),
+        ) {
+            Icon(Icons.Filled.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("AGGIUNGI PULSANTE", style = MaterialTheme.typography.titleMedium)
+        }
+        OutlinedCard(Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Suggerimento: chat e gruppi", fontWeight = FontWeight.Bold)
+                Text(
+                    "In WhatsApp apri la chat o il gruppo → menu ⋮ → Altro → \"Aggiungi scorciatoia\". " +
+                        "In Telegram: profilo del gruppo → ⋮ → \"Aggiungi alla schermata Home\". " +
+                        "Il pulsante comparirà qui da solo (EasyHome deve essere il launcher predefinito).",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
             }
-            Button(
-                onClick = { showContactTypeDialog = true },
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-            ) {
-                Icon(Icons.Filled.Call, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("AGGIUNGI CHIAMATA A UN CONTATTO")
+        }
+    }
+
+    if (showAddMenu) {
+        Dialog(onDismissRequest = { showAddMenu = false }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+            Surface(Modifier.fillMaxSize()) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Cosa vuoi aggiungere?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                        IconButton(onClick = { showAddMenu = false }) { Icon(Icons.Filled.Close, contentDescription = "Chiudi") }
+                    }
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(AddChoice.entries.toList()) { choice ->
+                            OutlinedCard(
+                                onClick = { onChoice(choice) },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(Modifier.padding(16.dp)) {
+                                    Text(choice.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text(choice.subtitle, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -180,30 +252,27 @@ fun ButtonsStep(state: AdminUiState, viewModel: AdminViewModel, iconLoader: Icon
         )
     }
 
-    if (showContactTypeDialog) {
-        AlertDialog(
-            onDismissRequest = { showContactTypeDialog = false },
-            title = { Text("Che tipo di chiamata?") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
-                        onClick = {
-                            showContactTypeDialog = false
-                            startContactFlow(ActionType.PHONE_CALL)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("CHIAMATA TELEFONICA") }
-                    Button(
-                        onClick = {
-                            showContactTypeDialog = false
-                            startContactFlow(ActionType.WHATSAPP_VIDEO)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("VIDEOCHIAMATA WHATSAPP") }
-                }
+    if (showShortcutPicker) {
+        ShortcutPickerDialog(
+            shortcuts = state.shortcuts,
+            loading = state.shortcutsLoading,
+            canUseShortcuts = state.canUseShortcuts,
+            iconLoader = iconLoader,
+            onPick = {
+                showShortcutPicker = false
+                viewModel.addShortcut(it)
             },
-            confirmButton = {},
-            dismissButton = { TextButton(onClick = { showContactTypeDialog = false }) { Text("ANNULLA") } },
+            onDismiss = { showShortcutPicker = false },
+        )
+    }
+
+    if (showLinkDialog) {
+        LinkDialog(
+            onConfirm = { label, link ->
+                showLinkDialog = false
+                viewModel.addLink(label, link)
+            },
+            onDismiss = { showLinkDialog = false },
         )
     }
 
@@ -223,6 +292,142 @@ fun ButtonsStep(state: AdminUiState, viewModel: AdminViewModel, iconLoader: Icon
             },
             dismissButton = { TextButton(onClick = { buttonToDelete = null }) { Text("ANNULLA") } },
         )
+    }
+}
+
+@Composable
+private fun LinkDialog(onConfirm: (String, String) -> Unit, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    var label by rememberSaveable { mutableStateOf("") }
+    var link by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Gruppo tramite link") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "WhatsApp: info gruppo → Invita tramite link → Copia link.\n" +
+                        "Telegram: info gruppo/canale → link t.me/...\n" +
+                        "Se la persona è già nel gruppo, il link apre direttamente la chat.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = link,
+                    onValueChange = { link = it.trim() },
+                    label = { Text("Link (es. https://chat.whatsapp.com/...)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextButton(onClick = { clipboard.getText()?.text?.let { link = it.trim() } }) {
+                    Text("INCOLLA DAGLI APPUNTI")
+                }
+                OutlinedTextField(
+                    value = label,
+                    onValueChange = { label = LauncherConfig.normalizeLabel(it) },
+                    label = { Text("Nome del pulsante (es. FAMIGLIA)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(label, link) }, enabled = link.isNotBlank()) { Text("AGGIUNGI") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("ANNULLA") } },
+    )
+}
+
+@Composable
+private fun ShortcutPickerDialog(
+    shortcuts: List<AppShortcut>,
+    loading: Boolean,
+    canUseShortcuts: Boolean,
+    iconLoader: IconLoader,
+    onPick: (AppShortcut) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val filtered = remember(shortcuts, query) {
+        val q = query.trim()
+        val list = if (q.isEmpty()) shortcuts else shortcuts.filter {
+            it.label.contains(q, ignoreCase = true) || it.appLabel.contains(q, ignoreCase = true)
+        }
+        // Prima le app di messaggistica, poi le altre.
+        list.sortedWith(compareBy({ !isMessaging(it.packageName) }, { it.appLabel.lowercase() }, { it.label.lowercase() }))
+    }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(Modifier.fillMaxSize()) {
+            Column(Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Chat, gruppi e scorciatoie", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Close, contentDescription = "Chiudi") }
+                }
+                when {
+                    loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    !canUseShortcuts -> Text(
+                        "Per leggere chat e gruppi delle app, EasyHome deve essere il LAUNCHER PREDEFINITO. " +
+                            "Impostalo al passo 3 e riprova.",
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(vertical = 16.dp),
+                    )
+                    else -> {
+                        Text(
+                            "WhatsApp e Telegram mostrano qui le chat usate di recente. Se una chat manca, " +
+                                "aprila e scrivi un messaggio, oppure usa \"Aggiungi scorciatoia\" dall'app.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                            label = { Text("Cerca") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        if (filtered.isEmpty()) {
+                            Text("Nessuna scorciatoia disponibile.", modifier = Modifier.padding(16.dp))
+                        } else {
+                            LazyColumn(Modifier.fillMaxSize()) {
+                                items(filtered, key = { it.packageName + "/" + it.shortcutId }) { sc ->
+                                    ShortcutRow(sc, iconLoader) { onPick(sc) }
+                                    HorizontalDivider()
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun isMessaging(pkg: String) =
+    pkg == ContactResolver.WHATSAPP_PACKAGE || pkg == "com.whatsapp.w4b" || pkg in ContactResolver.TELEGRAM_PACKAGES
+
+@Composable
+private fun ShortcutRow(shortcut: AppShortcut, iconLoader: IconLoader, onClick: () -> Unit) {
+    val sizePx = with(LocalDensity.current) { 44.dp.roundToPx() }
+    val icon = rememberAppIcon(shortcut.packageName, shortcut.shortcutId, sizePx, iconLoader)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp, horizontal = 4.dp),
+    ) {
+        val bmp = icon
+        if (bmp != null) {
+            Image(bmp.asImageBitmap(), contentDescription = null, modifier = Modifier.size(44.dp).clip(CircleShape))
+        } else {
+            Spacer(Modifier.size(44.dp))
+        }
+        Spacer(Modifier.width(16.dp))
+        Column {
+            Text(shortcut.label, style = MaterialTheme.typography.titleMedium)
+            Text(shortcut.appLabel, style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
+        }
     }
 }
 
@@ -361,7 +566,7 @@ private fun AppPickerDialog(
 @Composable
 private fun AppRow(app: InstalledApp, iconLoader: IconLoader, onClick: () -> Unit) {
     val sizePx = with(LocalDensity.current) { 44.dp.roundToPx() }
-    val icon = rememberAppIcon(app.packageName, sizePx, iconLoader)
+    val icon = rememberAppIcon(app.packageName, null, sizePx, iconLoader)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -378,7 +583,7 @@ private fun AppRow(app: InstalledApp, iconLoader: IconLoader, onClick: () -> Uni
         Spacer(Modifier.width(16.dp))
         Column {
             Text(app.label, style = MaterialTheme.typography.titleMedium)
-            Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Text(app.packageName, style = MaterialTheme.typography.bodySmall, color = Color.DarkGray)
         }
     }
 }

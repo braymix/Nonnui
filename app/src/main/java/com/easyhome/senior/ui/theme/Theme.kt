@@ -1,5 +1,6 @@
 package com.easyhome.senior.ui.theme
 
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
@@ -38,15 +39,15 @@ data class SeniorColors(
 )
 
 val LightSeniorColors = SeniorColors(
-    background = Color(0xFFF5F5F5),
+    background = Color(0xFFFFFFFF),
     onBackground = Color(0xFF000000),
-    topBar = Color(0xFFFFFFFF),
-    onTopBar = Color(0xFF000000),
+    topBar = Color(0xFF0D47A1),
+    onTopBar = Color(0xFFFFFFFF),
     border = Color(0xFF000000),
     shadow = Color(0xFF000000),
     keyBackground = Color(0xFFFFFFFF),
     onKey = Color(0xFF000000),
-    keyboardBackground = Color(0xFFD6D6D6),
+    keyboardBackground = Color(0xFF37474F),
     danger = Color(0xFFB71C1C),
     onDanger = Color(0xFFFFFFFF),
     success = Color(0xFF1B5E20),
@@ -60,11 +61,11 @@ val LightSeniorColors = SeniorColors(
 val DarkSeniorColors = SeniorColors(
     background = Color(0xFF000000),
     onBackground = Color(0xFFFFFFFF),
-    topBar = Color(0xFF1C1C1C),
+    topBar = Color(0xFF212121),
     onTopBar = Color(0xFFFFFFFF),
     border = Color(0xFFFFFFFF),
-    shadow = Color(0xFF5A5A5A),
-    keyBackground = Color(0xFF2B2B2B),
+    shadow = Color(0xFF616161),
+    keyBackground = Color(0xFF303030),
     onKey = Color(0xFFFFFFFF),
     keyboardBackground = Color(0xFF000000),
     danger = Color(0xFFD32F2F),
@@ -120,30 +121,90 @@ private val SeniorTypography = Typography(
     labelLarge = TextStyle(fontSize = 18.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold),
 )
 
+/**
+ * Schema Material 3 COMPLETO: ogni ruolo (container, surfaceContainer*, outline...) è
+ * esplicito. I valori di default di Material 3 sono toni pastello lilla/rosa a basso
+ * contrasto, inadatti a chi vede poco: qui solo colori pieni, neutri e bordi scuri.
+ */
+private fun strongColorScheme(
+    dark: Boolean,
+    primary: Color,
+    onPrimary: Color,
+    background: Color,
+    onBackground: Color,
+    surfaceLow: Color,
+    surfaceHigh: Color,
+    outline: Color,
+    error: Color,
+    onError: Color,
+): ColorScheme {
+    val base = if (dark) darkColorScheme() else lightColorScheme()
+    return base.copy(
+        primary = primary,
+        onPrimary = onPrimary,
+        primaryContainer = primary,
+        onPrimaryContainer = onPrimary,
+        inversePrimary = primary,
+        secondary = primary,
+        onSecondary = onPrimary,
+        // Slider, chip, badge: grigio neutro invece del lilla di default.
+        secondaryContainer = surfaceHigh,
+        onSecondaryContainer = onBackground,
+        tertiary = primary,
+        onTertiary = onPrimary,
+        tertiaryContainer = primary,
+        onTertiaryContainer = onPrimary,
+        background = background,
+        onBackground = onBackground,
+        surface = background,
+        onSurface = onBackground,
+        surfaceVariant = surfaceHigh,
+        onSurfaceVariant = onBackground,
+        // Nessuna tinta colorata sulle superfici elevate.
+        surfaceTint = background,
+        inverseSurface = onBackground,
+        inverseOnSurface = background,
+        error = error,
+        onError = onError,
+        errorContainer = error,
+        onErrorContainer = onError,
+        outline = outline,
+        outlineVariant = outline,
+        scrim = Color.Black,
+        surfaceBright = background,
+        surfaceContainer = surfaceLow,
+        surfaceContainerHigh = surfaceLow,
+        surfaceContainerHighest = surfaceHigh,
+        surfaceContainerLow = background,
+        surfaceContainerLowest = background,
+        surfaceDim = surfaceHigh,
+    )
+}
+
 @Composable
 fun EasyHomeTheme(theme: AppTheme, content: @Composable () -> Unit) {
     val colors = seniorColorsFor(theme)
-    val scheme = if (colors.isDark) {
-        darkColorScheme(
-            primary = colors.onBackground,
-            onPrimary = colors.background,
-            background = colors.background,
-            onBackground = colors.onBackground,
-            surface = colors.topBar,
-            onSurface = colors.onTopBar,
-            error = colors.danger,
-            onError = colors.onDanger,
+    val scheme = when (theme) {
+        AppTheme.LIGHT -> strongColorScheme(
+            dark = false,
+            primary = Color(0xFF0D47A1), onPrimary = Color.White,
+            background = Color.White, onBackground = Color.Black,
+            surfaceLow = Color.White, surfaceHigh = Color(0xFFE0E0E0),
+            outline = Color.Black, error = colors.danger, onError = colors.onDanger,
         )
-    } else {
-        lightColorScheme(
-            primary = Color(0xFF0D47A1),
-            onPrimary = Color.White,
-            background = colors.background,
-            onBackground = colors.onBackground,
-            surface = colors.topBar,
-            onSurface = colors.onTopBar,
-            error = colors.danger,
-            onError = colors.onDanger,
+        AppTheme.DARK -> strongColorScheme(
+            dark = true,
+            primary = Color.White, onPrimary = Color.Black,
+            background = Color.Black, onBackground = Color.White,
+            surfaceLow = Color(0xFF212121), surfaceHigh = Color(0xFF424242),
+            outline = Color.White, error = colors.danger, onError = colors.onDanger,
+        )
+        AppTheme.HIGH_CONTRAST -> strongColorScheme(
+            dark = true,
+            primary = Color(0xFFFFFF00), onPrimary = Color.Black,
+            background = Color.Black, onBackground = Color(0xFFFFFF00),
+            surfaceLow = Color.Black, surfaceHigh = Color(0xFF333300),
+            outline = Color(0xFFFFFF00), error = colors.danger, onError = colors.onDanger,
         )
     }
     CompositionLocalProvider(LocalSeniorColors provides colors) {
@@ -151,18 +212,16 @@ fun EasyHomeTheme(theme: AppTheme, content: @Composable () -> Unit) {
     }
 }
 
-/** Tema sobrio e leggibile per il configuratore dei familiari. */
+/** Tema nitido (niente pastello) per il configuratore dei familiari. */
 @Composable
 fun AdminTheme(content: @Composable () -> Unit) {
     MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = Color(0xFF0D47A1),
-            onPrimary = Color.White,
-            secondary = Color(0xFF1B5E20),
-            onSecondary = Color.White,
-            error = Color(0xFFB71C1C),
-            background = Color(0xFFFAFAFA),
-            surface = Color.White,
+        colorScheme = strongColorScheme(
+            dark = false,
+            primary = Color(0xFF0D47A1), onPrimary = Color.White,
+            background = Color.White, onBackground = Color.Black,
+            surfaceLow = Color(0xFFF5F5F5), surfaceHigh = Color(0xFFE0E0E0),
+            outline = Color(0xFF424242), error = Color(0xFFB71C1C), onError = Color.White,
         ),
         typography = Typography(),
         content = content,

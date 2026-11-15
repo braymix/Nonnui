@@ -57,7 +57,8 @@ fun PermissionsStep(state: AdminUiState, viewModel: AdminViewModel) {
         )
         PermissionCard(
             title = "1. Launcher predefinito",
-            description = "EasyHome deve essere la schermata Home: il tasto Home riporta sempre qui.",
+            description = "EasyHome deve essere la schermata Home: il tasto Home riporta sempre qui. " +
+                "Serve anche per le scorciatoie di chat e gruppi WhatsApp/Telegram.",
             granted = p.isDefaultLauncher,
             actions = listOf(
                 PermissionAction("CONFIGURA ORA", true) {
@@ -112,7 +113,20 @@ fun PermissionsStep(state: AdminUiState, viewModel: AdminViewModel) {
             ),
         )
         PermissionCard(
-            title = "6. Contatti (per videochiamate WhatsApp)",
+            title = "6. Luminosità (impostazioni di sistema)",
+            description = "Serve solo se al passo 2 hai scelto luminosità ADATTIVA o FISSA.",
+            granted = p.canWriteSystemSettings,
+            actions = listOf(
+                PermissionAction("CONFIGURA ORA", true) {
+                    context.safeStartActivity(
+                        context.appContainer.brightnessController.writeSettingsIntent(),
+                        fallback = checker.appDetailsIntent(),
+                    )
+                },
+            ),
+        )
+        PermissionCard(
+            title = "7. Contatti (chiamate e chat WhatsApp dirette)",
             description = "Serve per avviare la videochiamata WhatsApp direttamente, senza passare dalla chat.",
             granted = p.hasContactsPermission,
             actions = listOf(

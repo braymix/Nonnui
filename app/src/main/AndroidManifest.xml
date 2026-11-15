@@ -17,6 +17,10 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Esclusione dal risparmio energetico -->
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <!-- Luminosità adattiva/fissa (permesso speciale concesso dalle impostazioni) -->
+    <uses-permission
+        android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
 
     <uses-feature
         android:name="android.hardware.telephony"
@@ -43,7 +47,19 @@
             <action android:name="android.intent.action.PICK" />
             <data android:mimeType="vnd.android.cursor.dir/phone_v2" />
         </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="tg" />
+        </intent>
         <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+        <package android:name="org.telegram.messenger" />
+        <package android:name="org.telegram.messenger.web" />
+        <package android:name="org.thunderdog.challegram" />
     </queries>
 
     <application
@@ -88,6 +104,17 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Richieste "Aggiungi scorciatoia" di chat/gruppi da WhatsApp, Telegram, ecc. -->
+        <activity
+            android:name=".ui.pin.ConfirmPinShortcutActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/Theme.EasyHome.Translucent">
+            <intent-filter>
+                <action android:name="android.content.pm.action.CONFIRM_PIN_SHORTCUT" />
+            </intent-filter>
+        </activity>
 
         <!-- Pulsante galleggiante "Torna all'inizio" -->
         <service

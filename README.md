@@ -3,6 +3,13 @@
 Launcher Android ultra-semplificato per persone anziane, con tastiera alfabetica **ABCD** integrata,
 pulsante galleggiante **"🏠 TORNA ALL'INIZIO"** e configuratore guidato a prova di errore per i familiari.
 
+- **Pulsanti illimitati**, disposti a **lista o griglia (2 o 3 colonne)** con righe per schermata
+  configurabili; se non entrano tutti, la Home si sfoglia con grandi tasti AVANTI / INDIETRO (niente swipe).
+- **Scorciatoie intelligenti**: chiamata, videochiamata e chiamata WhatsApp, chat WhatsApp o Telegram di
+  un contatto, gruppi tramite link di invito, e chat/gruppi da "Aggiungi scorciatoia" di WhatsApp e Telegram.
+- **Luminosità** del telefono: come da sistema, **adattiva** (sensore) o fissa.
+- Temi a colori pieni (chiaro, scuro, alto contrasto): nessun colore pastello.
+
 - Kotlin 2.0 · Jetpack Compose (Material 3) · MVVM + Clean Architecture (`StateFlow` immutabili)
 - Jetpack DataStore (Preferences) · minSdk 26 · target/compile SDK 35
 - Nessuna libreria di terze parti: solo AndroidX e API di piattaforma (`PackageManager`,
@@ -58,6 +65,8 @@ app/src/main/
     │       ├── PermissionsStep.kt          3. Semaforo permessi (aggiornato a ON_RESUME)
     │       ├── BackupStep.kt               4. Export/import JSON (copia, condividi, file)
     │       └── LivePreview.kt              HomeScreen reale rimpicciolita
+    ├── ui/pin/ConfirmPinShortcutActivity.kt  Riceve "Aggiungi scorciatoia" da WhatsApp/Telegram
+    ├── system/BrightnessController.kt  Luminosità adattiva/fissa (WRITE_SETTINGS) + ripiego sulla finestra
     ├── service/OverlayService.kt           Pulsante "TORNA ALL'INIZIO" (TYPE_APPLICATION_OVERLAY)
     ├── service/BootReceiver.kt             Riattiva l'overlay dopo riavvio/aggiornamento
     └── ime/
@@ -71,7 +80,20 @@ app/src/main/
 2. Tenere premuto l'**orologio** per 5 secondi e rispondere alla domanda.
 3. Seguire i 4 passi. Al passo 3 tutte le voci devono diventare **VERDI**:
    launcher predefinito, tastiera ABCD (abilitata + selezionata), overlay, esclusione risparmio energetico,
-   più (consigliati) chiamate dirette e contatti per la videochiamata WhatsApp.
+   più (consigliati) chiamate dirette, luminosità e contatti per chiamate/chat WhatsApp dirette.
+
+### Aggiungere una chat o un gruppo WhatsApp/Telegram
+
+- **Dal configuratore**: AGGIUNGI PULSANTE → "Chat o gruppo (scorciatoia app)" mostra le chat recenti
+  pubblicate da WhatsApp/Telegram (serve che EasyHome sia il launcher predefinito).
+- **Dall'app**: WhatsApp → chat/gruppo → ⋮ → Altro → *Aggiungi scorciatoia*; Telegram → profilo → ⋮ →
+  *Aggiungi alla schermata Home*. EasyHome chiede conferma e crea il pulsante.
+- **Tramite link**: "Gruppo tramite link" con il link di invito (`chat.whatsapp.com/...` o `t.me/...`).
+
+## APK automatico
+
+Ogni push esegue test e build su GitHub Actions e aggiorna la release
+[`ultima-build`](../../releases/tag/ultima-build), scaricabile direttamente dal telefono.
 
 Ogni modifica è salvata immediatamente: si può uscire in qualsiasi momento.
 
@@ -80,14 +102,22 @@ Ogni modifica è salvata immediatamente: si può uscire in qualsiasi momento.
 - **Indietro** è intercettato con `BackHandler`. Android non consente a un'app normale di disabilitare i
   gesti Home/Recenti; essendo però il launcher predefinito, Home riporta sempre qui. La barra di stato è
   nascosta per ridurre le aperture accidentali della tendina.
+- **Pagine**: con più pulsanti di quanti ne entrino (colonne × righe) la Home si sfoglia a pagine; il tasto
+  Home/"Torna all'inizio" riporta sempre alla prima.
 - **Tocco**: l'azione parte al rilascio del dito se questo è dentro il pulsante allargato di 48 dp, quindi
   vale sia il tap rapido sia la pressione prolungata accidentale; tocchi ripetuti entro 700 ms sono ignorati.
 - **Overlay**: visibile solo quando nessuna Activity del launcher è in primo piano (`ProcessLifecycleOwner`):
   non servono permessi di Usage Access né un servizio di accessibilità. La posizione (in basso / in alto) è
   configurabile, perché in basso può sovrapporsi alla riga di scrittura delle chat.
-- **Videochiamata WhatsApp**: usa la riga di rubrica `vnd.com.whatsapp.video.call` (richiede READ_CONTACTS);
-  se manca il permesso o il contatto non è su WhatsApp, apre la chat (`wa.me`) da cui la videochiamata è a un
-  tocco. Dopo un import su un altro telefono gli ID vengono ricalcolati dal numero.
+- **WhatsApp** (videochiamata, chiamata, chat): usa le righe di rubrica `vnd.com.whatsapp.*` (richiede
+  READ_CONTACTS); se mancano, apre la chat via `wa.me` con il numero normalizzato in formato internazionale.
+  Dopo un import su un altro telefono gli ID vengono ricalcolati dal numero.
+- **Telegram**: chat tramite `tg://resolve?phone=`; funziona se il numero è visibile su Telegram, altrimenti
+  conviene la scorciatoia "Aggiungi alla schermata Home" o il link `t.me/...`.
+- **Gruppi WhatsApp**: Android non offre un modo per aprire un gruppo tramite ID; si usano la scorciatoia
+  dell'app oppure il link di invito, che per chi è già membro apre direttamente la chat del gruppo.
+- **Luminosità adattiva/fissa** per tutto il telefono richiede il permesso speciale "Modifica impostazioni di
+  sistema"; senza, la luminosità fissa vale solo sulla Home.
 - **Batteria**: il banner lampeggiante (1 Hz, sicuro per fotosensibili) appare sotto il 20% se il telefono
   non è in carica.
 - `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` è soggetto alle policy di Google Play: per la distribuzione

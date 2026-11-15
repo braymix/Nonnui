@@ -29,10 +29,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.easyhome.senior.di.appContainer
 import com.easyhome.senior.domain.model.AppTheme
+import com.easyhome.senior.domain.model.BrightnessMode
+import com.easyhome.senior.system.safeStartActivity
 import com.easyhome.senior.domain.model.LauncherConfig
 import com.easyhome.senior.domain.model.OverlayPosition
 import com.easyhome.senior.domain.model.VibrationIntensity
@@ -46,6 +50,71 @@ fun AppearanceStep(state: AdminUiState, viewModel: AdminViewModel, iconLoader: I
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LivePreview(config, iconLoader, Modifier.align(Alignment.CenterHorizontally))
 
+        SectionTitle("Disposizione dei pulsanti")
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ToggleButton("LISTA", config.columns == 1) { viewModel.setColumns(1) }
+            ToggleButton("GRIGLIA 2", config.columns == 2) { viewModel.setColumns(2) }
+            ToggleButton("GRIGLIA 3", config.columns == 3) { viewModel.setColumns(3) }
+        }
+        SectionTitle("Righe per schermata: ${config.rowsPerPage}")
+        SteppedSlider(
+            value = config.rowsPerPage,
+            range = LauncherConfig.MIN_ROWS..LauncherConfig.MAX_ROWS,
+            step = 1,
+            onChange = viewModel::setRowsPerPage,
+        )
+        Text(
+            "Ogni schermata mostra fino a ${config.pageSize} pulsanti " +
+                "(${config.columns} × ${config.rowsPerPage}). Con ${config.buttons.size} pulsanti: " +
+                "${config.pageCount} " + (if (config.pageCount == 1) "schermata." else "schermate, sfogliabili con AVANTI / INDIETRO."),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+
+        HorizontalDivider()
+        SectionTitle("Luminosità schermo")
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ToggleButton("TELEFONO", config.brightnessMode == BrightnessMode.SYSTEM) {
+                viewModel.setBrightnessMode(BrightnessMode.SYSTEM)
+            }
+            ToggleButton("ADATTIVA", config.brightnessMode == BrightnessMode.AUTO) {
+                viewModel.setBrightnessMode(BrightnessMode.AUTO)
+            }
+            ToggleButton("FISSA", config.brightnessMode == BrightnessMode.FIXED) {
+                viewModel.setBrightnessMode(BrightnessMode.FIXED)
+            }
+        }
+        Text(
+            when (config.brightnessMode) {
+                BrightnessMode.SYSTEM -> "La luminosità resta quella impostata sul telefono."
+                BrightnessMode.AUTO -> "Si regola da sola in base alla luce dell'ambiente (sensore del telefono)."
+                BrightnessMode.FIXED -> "Sempre allo stesso livello, scelto qui sotto."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (config.brightnessMode == BrightnessMode.FIXED) {
+            SectionTitle("Livello: ${config.brightnessLevel}%")
+            SteppedSlider(
+                value = config.brightnessLevel,
+                range = LauncherConfig.MIN_BRIGHTNESS..LauncherConfig.MAX_BRIGHTNESS,
+                step = 5,
+                onChange = viewModel::setBrightnessLevel,
+            )
+        }
+        if (config.brightnessMode != BrightnessMode.SYSTEM && !state.permissions.canWriteSystemSettings) {
+            val context = LocalContext.current
+            Text(
+                "Serve il permesso \"Modifica impostazioni di sistema\" per applicarla a tutto il telefono" +
+                    if (config.brightnessMode == BrightnessMode.FIXED) " (senza, vale solo sulla Home)." else ".",
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.Bold,
+            )
+            Button(
+                onClick = { context.safeStartActivity(context.appContainer.brightnessController.writeSettingsIntent()) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("CONCEDI PERMESSO") }
+        }
+
+        HorizontalDivider()
         SectionTitle("Tema")
         AppTheme.entries.forEach { theme ->
             ThemeOption(theme = theme, selected = config.theme == theme, onClick = { viewModel.setTheme(theme) })
@@ -174,7 +243,7 @@ private fun RowScope.ToggleButton(text: String, selected: Boolean, onClick: () -
         Button(onClick = onClick, modifier = modifier, contentPadding = pad) { Text(text, maxLines = 1) }
     } else {
         OutlinedButton(onClick = onClick, modifier = modifier, contentPadding = pad) {
-            Text(text, maxLines = 1, color = Color.DarkGray)
+            Text(text, maxLines = 1, color = Color.Black)
         }
     }
 }

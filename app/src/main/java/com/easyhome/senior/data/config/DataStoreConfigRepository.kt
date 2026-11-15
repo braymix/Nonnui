@@ -32,6 +32,10 @@ class DataStoreConfigRepository(context: Context) : ConfigRepository {
         val SOUND = booleanPreferencesKey("sound_enabled")
         val VIBRATION = stringPreferencesKey("vibration")
         val OVERLAY_POSITION = stringPreferencesKey("overlay_position")
+        val COLUMNS = intPreferencesKey("columns")
+        val ROWS_PER_PAGE = intPreferencesKey("rows_per_page")
+        val BRIGHTNESS_MODE = stringPreferencesKey("brightness_mode")
+        val BRIGHTNESS_LEVEL = intPreferencesKey("brightness_level")
     }
 
     override val config: Flow<LauncherConfig> = dataStore.data
@@ -60,6 +64,10 @@ class DataStoreConfigRepository(context: Context) : ConfigRepository {
             soundEnabled = this[Keys.SOUND] ?: defaults.soundEnabled,
             vibration = enumValueOrDefault(this[Keys.VIBRATION], defaults.vibration),
             overlayPosition = enumValueOrDefault(this[Keys.OVERLAY_POSITION], defaults.overlayPosition),
+            columns = this[Keys.COLUMNS] ?: defaults.columns,
+            rowsPerPage = this[Keys.ROWS_PER_PAGE] ?: defaults.rowsPerPage,
+            brightnessMode = enumValueOrDefault(this[Keys.BRIGHTNESS_MODE], defaults.brightnessMode),
+            brightnessLevel = this[Keys.BRIGHTNESS_LEVEL] ?: defaults.brightnessLevel,
         ).sanitized()
     }
 
@@ -71,6 +79,10 @@ class DataStoreConfigRepository(context: Context) : ConfigRepository {
         this[Keys.SOUND] = config.soundEnabled
         this[Keys.VIBRATION] = config.vibration.name
         this[Keys.OVERLAY_POSITION] = config.overlayPosition.name
+        this[Keys.COLUMNS] = config.columns
+        this[Keys.ROWS_PER_PAGE] = config.rowsPerPage
+        this[Keys.BRIGHTNESS_MODE] = config.brightnessMode.name
+        this[Keys.BRIGHTNESS_LEVEL] = config.brightnessLevel
     }
 
     private inline fun <reified T : Enum<T>> enumValueOrDefault(name: String?, default: T): T =

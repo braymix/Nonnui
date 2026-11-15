@@ -3,7 +3,31 @@ package com.easyhome.senior.domain.model
 import java.util.Locale
 
 /** Tipo di azione eseguita da un pulsante della Home. */
-enum class ActionType { APP, PHONE_CALL, WHATSAPP_VIDEO }
+enum class ActionType {
+    /** Apre un'app installata. */
+    APP,
+
+    /** Chiamata telefonica diretta a un contatto. */
+    PHONE_CALL,
+
+    /** Videochiamata WhatsApp a un contatto. */
+    WHATSAPP_VIDEO,
+
+    /** Chiamata vocale WhatsApp a un contatto. */
+    WHATSAPP_VOICE,
+
+    /** Apre la chat WhatsApp di un contatto. */
+    WHATSAPP_CHAT,
+
+    /** Apre la chat Telegram di un contatto (tramite numero di telefono). */
+    TELEGRAM_CHAT,
+
+    /** Apre un link: invito a gruppo WhatsApp (chat.whatsapp.com), t.me/..., sito web. */
+    LINK,
+
+    /** Scorciatoia pubblicata da un'app (es. chat o gruppo WhatsApp/Telegram "Aggiungi a Home"). */
+    SHORTCUT,
+}
 
 /** Temi disponibili per la Home e la tastiera. */
 enum class AppTheme { LIGHT, DARK, HIGH_CONTRAST }
@@ -14,17 +38,34 @@ enum class VibrationIntensity { OFF, LOW, MEDIUM, HIGH }
 /** Posizione del pulsante galleggiante "Torna all'inizio". */
 enum class OverlayPosition { BOTTOM, TOP }
 
+/** Gestione della luminosità dello schermo. */
+enum class BrightnessMode {
+    /** Non tocca la luminosità: decide il telefono. */
+    SYSTEM,
+
+    /** Luminosità adattiva (sensore di luce) attivata a livello di sistema. */
+    AUTO,
+
+    /** Luminosità fissa al livello scelto. */
+    FIXED,
+}
+
 /** Un pulsante gigante della Home. Modello immutabile. */
 data class HomeButton(
     val id: String,
     val type: ActionType,
     val label: String,
     val colorArgb: Long,
+    /** App da aprire (APP), app proprietaria della scorciatoia (SHORTCUT) o app preferita per un LINK. */
     val packageName: String? = null,
     val contactName: String? = null,
     val phoneNumber: String? = null,
-    /** ID della riga ContactsContract.Data con mimetype WhatsApp video (specifico del dispositivo). */
+    /** ID della riga ContactsContract.Data di WhatsApp (specifico del dispositivo). */
     val whatsappDataId: Long? = null,
+    /** URL per il tipo LINK. */
+    val link: String? = null,
+    /** ID della scorciatoia per il tipo SHORTCUT. */
+    val shortcutId: String? = null,
 )
 
 /** Configurazione completa del launcher, persistita in DataStore. */
@@ -36,8 +77,17 @@ data class LauncherConfig(
     val soundEnabled: Boolean = true,
     val vibration: VibrationIntensity = VibrationIntensity.HIGH,
     val overlayPosition: OverlayPosition = OverlayPosition.BOTTOM,
+    /** 1 = lista (pulsanti impilati), 2-3 = griglia. */
+    val columns: Int = DEFAULT_COLUMNS,
+    /** Righe visibili in ciascuna schermata: oltre, compaiono i tasti AVANTI/INDIETRO. */
+    val rowsPerPage: Int = DEFAULT_ROWS,
+    val brightnessMode: BrightnessMode = BrightnessMode.SYSTEM,
+    /** Percentuale 10-100, usata con [BrightnessMode.FIXED]. */
+    val brightnessLevel: Int = DEFAULT_BRIGHTNESS,
 ) {
     val isFull: Boolean get() = buttons.size >= MAX_BUTTONS
+    val pageSize: Int get() = columns * rowsPerPage
+    val pageCount: Int get() = if (buttons.isEmpty()) 1 else (buttons.size + pageSize - 1) / pageSize
 
     /** Riporta qualsiasi valore (es. da import JSON) entro i limiti ammessi. */
     fun sanitized(): LauncherConfig = copy(
@@ -47,10 +97,14 @@ data class LauncherConfig(
             .map { it.copy(label = normalizeLabel(it.label)) },
         fontSizeSp = fontSizeSp.coerceIn(MIN_FONT_SP, MAX_FONT_SP),
         iconSizeDp = iconSizeDp.coerceIn(MIN_ICON_DP, MAX_ICON_DP),
+        columns = columns.coerceIn(MIN_COLUMNS, MAX_COLUMNS),
+        rowsPerPage = rowsPerPage.coerceIn(MIN_ROWS, MAX_ROWS),
+        brightnessLevel = brightnessLevel.coerceIn(MIN_BRIGHTNESS, MAX_BRIGHTNESS),
     )
 
     companion object {
-        const val MAX_BUTTONS = 4
+        /** Nessun limite pratico: è solo una protezione contro backup anomali. */
+        const val MAX_BUTTONS = 60
         const val MIN_FONT_SP = 24
         const val MAX_FONT_SP = 48
         const val DEFAULT_FONT_SP = 32
@@ -58,13 +112,22 @@ data class LauncherConfig(
         const val MAX_ICON_DP = 160
         const val DEFAULT_ICON_DP = 96
         const val MAX_LABEL_LENGTH = 24
+        const val MIN_COLUMNS = 1
+        const val MAX_COLUMNS = 3
+        const val DEFAULT_COLUMNS = 1
+        const val MIN_ROWS = 1
+        const val MAX_ROWS = 6
+        const val DEFAULT_ROWS = 4
+        const val MIN_BRIGHTNESS = 10
+        const val MAX_BRIGHTNESS = 100
+        const val DEFAULT_BRIGHTNESS = 80
 
         fun normalizeLabel(raw: String): String =
             raw.replace('\n', ' ').uppercase(Locale.ITALIAN).take(MAX_LABEL_LENGTH)
     }
 }
 
-/** Colori ad alto contrasto selezionabili per i pulsanti (nome visualizzato -> ARGB). */
+/** Colori pieni e saturi selezionabili per i pulsanti (nome visualizzato -> ARGB). */
 object ButtonPalette {
     val colors: List<Pair<String, Long>> = listOf(
         "VERDE" to 0xFF1B5E20,
@@ -80,6 +143,7 @@ object ButtonPalette {
 
     fun next(used: List<HomeButton>): Long {
         val usedColors = used.map { it.colorArgb }.toSet()
-        return colors.firstOrNull { it.second !in usedColors }?.second ?: colors.first().second
+        return colors.firstOrNull { it.second !in usedColors }?.second
+            ?: colors[used.size % colors.size].second
     }
 }

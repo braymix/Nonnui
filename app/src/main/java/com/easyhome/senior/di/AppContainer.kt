@@ -9,6 +9,7 @@ import com.easyhome.senior.domain.repository.AppsRepository
 import com.easyhome.senior.domain.repository.ConfigRepository
 import com.easyhome.senior.domain.repository.DeviceStatusRepository
 import com.easyhome.senior.system.ActionLauncher
+import com.easyhome.senior.system.BrightnessController
 import com.easyhome.senior.system.ContactResolver
 import com.easyhome.senior.system.FeedbackManager
 import com.easyhome.senior.system.PermissionChecker
@@ -24,6 +25,7 @@ class AppContainer(context: Context) {
     val contactResolver: ContactResolver by lazy { ContactResolver(appContext) }
     val actionLauncher: ActionLauncher by lazy { ActionLauncher(appContext, contactResolver) }
     val permissionChecker: PermissionChecker by lazy { PermissionChecker(appContext) }
+    val brightnessController: BrightnessController by lazy { BrightnessController(appContext) }
 }
 
 val Context.appContainer: AppContainer

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -21,6 +22,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.easyhome.senior.di.appContainer
+import com.easyhome.senior.domain.model.LauncherConfig
 import com.easyhome.senior.service.OverlayService
 import com.easyhome.senior.system.LaunchResult
 import com.easyhome.senior.ui.admin.AdminActivity
@@ -49,10 +51,19 @@ class MainActivity : ComponentActivity() {
             // Il tasto/gesto Indietro non deve mai far uscire l'anziano dalla Home.
             BackHandler(enabled = true) { viewModel.dismissMessage() }
 
+            // Luminosità adattiva/fissa: riapplicata ogni volta che cambia la configurazione.
+            LaunchedEffect(state.isLoaded, state.config.brightnessMode, state.config.brightnessLevel) {
+                if (state.isLoaded) applyBrightness(state.config)
+            }
+
             EasyHomeTheme(theme = state.config.theme) {
                 HomeScreen(
                     state = state,
                     iconLoader = container.appsRepository::loadIcon,
+                    onPageChange = { page ->
+                        container.feedbackManager.buttonFeedback(state.config)
+                        viewModel.goToPage(page)
+                    },
                     onButtonClick = { button ->
                         // Feedback immediato, prima ancora di avviare l'Intent.
                         container.feedbackManager.buttonFeedback(state.config)
@@ -83,6 +94,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         hideStatusBar()
+        val state = viewModel.uiState.value
+        if (state.isLoaded) applyBrightness(state.config)
         OverlayService.startIfPermitted(this)
     }
 
@@ -91,6 +104,12 @@ class MainActivity : ComponentActivity() {
         // Premuto "Home" (o "Torna all'inizio") mentre si è già sulla Home: stato pulito.
         showAdminGate = false
         viewModel.dismissMessage()
+        viewModel.resetPage()
+    }
+
+    private fun applyBrightness(config: LauncherConfig) {
+        container.brightnessController.applySystem(config)
+        container.brightnessController.applyToWindow(this, config)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

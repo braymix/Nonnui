@@ -32,6 +32,8 @@ data class HomeUiState(
     val isOnline: Boolean = true,
     val isLoaded: Boolean = false,
     val message: String? = null,
+    /** Pagina corrente quando i pulsanti non entrano in una sola schermata. */
+    val page: Int = 0,
 )
 
 class HomeViewModel(
@@ -40,6 +42,7 @@ class HomeViewModel(
 ) : ViewModel() {
 
     private val message = MutableStateFlow<String?>(null)
+    private val page = MutableStateFlow(0)
     private var messageJob: Job? = null
 
     val uiState: StateFlow<HomeUiState> = combine(
@@ -47,8 +50,8 @@ class HomeViewModel(
         deviceStatusRepository.clock,
         deviceStatusRepository.battery,
         deviceStatusRepository.isOnline,
-        message.asStateFlow(),
-    ) { config, now, battery, online, msg ->
+        combine(message.asStateFlow(), page.asStateFlow()) { msg, p -> msg to p },
+    ) { config, now, battery, online, (msg, currentPage) ->
         HomeUiState(
             config = config,
             timeText = formatTime(now),
@@ -57,6 +60,7 @@ class HomeViewModel(
             isOnline = online,
             isLoaded = true,
             message = msg,
+            page = currentPage.coerceIn(0, config.pageCount - 1),
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
 
@@ -67,6 +71,15 @@ class HomeViewModel(
             delay(MESSAGE_DURATION_MS)
             message.value = null
         }
+    }
+
+    fun goToPage(index: Int) {
+        page.value = index.coerceAtLeast(0)
+    }
+
+    /** Tasto Home / "Torna all'inizio": si riparte sempre dalla prima pagina. */
+    fun resetPage() {
+        page.value = 0
     }
 
     fun dismissMessage() {

@@ -22,6 +22,7 @@ data class PermissionStatus(
     val isIgnoringBatteryOptimizations: Boolean = false,
     val hasCallPermission: Boolean = false,
     val hasContactsPermission: Boolean = false,
+    val canWriteSystemSettings: Boolean = false,
 ) {
     val isKeyboardReady: Boolean get() = isKeyboardEnabled && isKeyboardSelected
 }
@@ -39,6 +40,7 @@ class PermissionChecker(private val context: Context) {
         isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations(),
         hasCallPermission = isGranted(Manifest.permission.CALL_PHONE),
         hasContactsPermission = isGranted(Manifest.permission.READ_CONTACTS),
+        canWriteSystemSettings = Settings.System.canWrite(context),
     )
 
     fun isDefaultLauncher(): Boolean {
