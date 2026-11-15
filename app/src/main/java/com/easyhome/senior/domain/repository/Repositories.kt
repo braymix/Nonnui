@@ -1,11 +1,13 @@
 package com.easyhome.senior.domain.repository
 
 import android.graphics.Bitmap
+import com.easyhome.senior.domain.model.AgendaEvent
 import com.easyhome.senior.domain.model.AppShortcut
 import com.easyhome.senior.domain.model.BatteryStatus
 import com.easyhome.senior.domain.model.InstalledApp
 import com.easyhome.senior.domain.model.LauncherConfig
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 interface ConfigRepository {
@@ -39,4 +41,9 @@ interface DeviceStatusRepository {
     val isOnline: Flow<Boolean>
     /** Emette l'ora corrente troncata al minuto, solo quando cambia. */
     val clock: Flow<LocalDateTime>
+}
+
+interface CalendarRepository {
+    /** Impegni da [from] per [days] giorni, in ordine; null se manca il permesso Calendario. */
+    suspend fun upcomingEvents(from: LocalDate, days: Int): List<AgendaEvent>?
 }

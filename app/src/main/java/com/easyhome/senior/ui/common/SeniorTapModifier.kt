@@ -44,10 +44,18 @@ fun Modifier.seniorTap(
             currentOnPressed(true)
             var lastPosition: Offset = down.position
             var released = false
+            var cancelled = false
             try {
                 while (true) {
                     val event = awaitPointerEvent()
-                    event.changes.firstOrNull { it.id == down.id }?.let { lastPosition = it.position }
+                    event.changes.firstOrNull { it.id == down.id }?.let { change ->
+                        // Già consumato da un genitore (es. swipe del calendario): il tocco non vale.
+                        if (change.isConsumed && !cancelled) {
+                            cancelled = true
+                            currentOnPressed(false)
+                        }
+                        lastPosition = change.position
+                    }
                     event.changes.forEach { it.consume() }
                     if (event.changes.none { it.pressed }) {
                         released = true
@@ -57,7 +65,7 @@ fun Modifier.seniorTap(
             } finally {
                 currentOnPressed(false)
             }
-            if (!released) return@awaitEachGesture
+            if (!released || cancelled) return@awaitEachGesture
             val insideTolerantBounds =
                 lastPosition.x >= -slopPx && lastPosition.x <= size.width + slopPx &&
                     lastPosition.y >= -slopPx && lastPosition.y <= size.height + slopPx

@@ -3,6 +3,8 @@ package com.easyhome.senior.data.config
 import com.easyhome.senior.domain.model.ActionType
 import com.easyhome.senior.domain.model.AppTheme
 import com.easyhome.senior.domain.model.BrightnessMode
+import com.easyhome.senior.domain.model.CalendarSwipe
+import com.easyhome.senior.domain.model.CalendarTarget
 import com.easyhome.senior.domain.model.HomeButton
 import com.easyhome.senior.domain.model.LauncherConfig
 import com.easyhome.senior.domain.model.OverlayPosition
@@ -35,6 +37,8 @@ class ConfigJsonSerializerTest {
         rowsPerPage = 3,
         brightnessMode = BrightnessMode.FIXED,
         brightnessLevel = 65,
+        calendarSwipe = CalendarSwipe.FROM_RIGHT,
+        calendarTarget = CalendarTarget.AGENDA,
     )
 
     @Test
@@ -98,6 +102,7 @@ class ConfigJsonSerializerTest {
         assertEquals(1, config.buttons.size)
         assertEquals(LauncherConfig.DEFAULT_COLUMNS, config.columns)
         assertEquals(BrightnessMode.SYSTEM, config.brightnessMode)
+        assertEquals(CalendarSwipe.OFF, config.calendarSwipe)
     }
 
     @Test

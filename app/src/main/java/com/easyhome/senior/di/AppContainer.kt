@@ -3,9 +3,11 @@ package com.easyhome.senior.di
 import android.content.Context
 import com.easyhome.senior.EasyHomeApp
 import com.easyhome.senior.data.apps.PackageManagerAppsRepository
+import com.easyhome.senior.data.calendar.AndroidCalendarRepository
 import com.easyhome.senior.data.config.DataStoreConfigRepository
 import com.easyhome.senior.data.device.AndroidDeviceStatusRepository
 import com.easyhome.senior.domain.repository.AppsRepository
+import com.easyhome.senior.domain.repository.CalendarRepository
 import com.easyhome.senior.domain.repository.ConfigRepository
 import com.easyhome.senior.domain.repository.DeviceStatusRepository
 import com.easyhome.senior.system.ActionLauncher
@@ -21,6 +23,7 @@ class AppContainer(context: Context) {
     val configRepository: ConfigRepository by lazy { DataStoreConfigRepository(appContext) }
     val appsRepository: AppsRepository by lazy { PackageManagerAppsRepository(appContext) }
     val deviceStatusRepository: DeviceStatusRepository by lazy { AndroidDeviceStatusRepository(appContext) }
+    val calendarRepository: CalendarRepository by lazy { AndroidCalendarRepository(appContext) }
     val feedbackManager: FeedbackManager by lazy { FeedbackManager(appContext) }
     val contactResolver: ContactResolver by lazy { ContactResolver(appContext) }
     val actionLauncher: ActionLauncher by lazy { ActionLauncher(appContext, contactResolver) }

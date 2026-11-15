@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.easyhome.senior.di.AppContainer
+import com.easyhome.senior.domain.model.AgendaEvent
 import com.easyhome.senior.domain.model.BatteryStatus
 import com.easyhome.senior.domain.model.LauncherConfig
+import com.easyhome.senior.domain.repository.CalendarRepository
 import com.easyhome.senior.domain.repository.ConfigRepository
 import com.easyhome.senior.domain.repository.DeviceStatusRepository
 import kotlinx.coroutines.Job
@@ -19,9 +21,18 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+
+/** Stato dell'agenda semplificata. */
+data class AgendaUiState(
+    val loading: Boolean = true,
+    val events: List<AgendaEvent> = emptyList(),
+    val needsPermission: Boolean = false,
+    val today: LocalDate = LocalDate.now(),
+)
 
 /** Stato immutabile della Home. */
 data class HomeUiState(
@@ -39,7 +50,26 @@ data class HomeUiState(
 class HomeViewModel(
     configRepository: ConfigRepository,
     deviceStatusRepository: DeviceStatusRepository,
+    private val calendarRepository: CalendarRepository,
 ) : ViewModel() {
+
+    private val _agenda = MutableStateFlow(AgendaUiState())
+    val agenda: StateFlow<AgendaUiState> = _agenda.asStateFlow()
+
+    /** Ricarica gli impegni ogni volta che l'agenda viene aperta (sempre aggiornata). */
+    fun loadAgenda() {
+        viewModelScope.launch {
+            val today = LocalDate.now()
+            _agenda.value = _agenda.value.copy(loading = true, today = today)
+            val events = calendarRepository.upcomingEvents(today, AGENDA_DAYS)
+            _agenda.value = AgendaUiState(
+                loading = false,
+                events = events.orEmpty(),
+                needsPermission = events == null,
+                today = today,
+            )
+        }
+    }
 
     private val message = MutableStateFlow<String?>(null)
     private val page = MutableStateFlow(0)
@@ -89,6 +119,7 @@ class HomeViewModel(
 
     companion object {
         private const val MESSAGE_DURATION_MS = 4_000L
+        const val AGENDA_DAYS = 7
         private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm", Locale.ITALIAN)
         private val DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ITALIAN)
 
@@ -97,7 +128,11 @@ class HomeViewModel(
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                HomeViewModel(container.configRepository, container.deviceStatusRepository)
+                HomeViewModel(
+                    container.configRepository,
+                    container.deviceStatusRepository,
+                    container.calendarRepository,
+                )
             }
         }
     }

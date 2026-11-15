@@ -23,6 +23,7 @@ data class PermissionStatus(
     val hasCallPermission: Boolean = false,
     val hasContactsPermission: Boolean = false,
     val canWriteSystemSettings: Boolean = false,
+    val hasCalendarPermission: Boolean = false,
 ) {
     val isKeyboardReady: Boolean get() = isKeyboardEnabled && isKeyboardSelected
 }
@@ -41,6 +42,7 @@ class PermissionChecker(private val context: Context) {
         hasCallPermission = isGranted(Manifest.permission.CALL_PHONE),
         hasContactsPermission = isGranted(Manifest.permission.READ_CONTACTS),
         canWriteSystemSettings = Settings.System.canWrite(context),
+        hasCalendarPermission = isGranted(Manifest.permission.READ_CALENDAR),
     )
 
     fun isDefaultLauncher(): Boolean {

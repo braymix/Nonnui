@@ -11,6 +11,8 @@ import com.easyhome.senior.di.AppContainer
 import com.easyhome.senior.domain.model.ActionType
 import com.easyhome.senior.domain.model.AppShortcut
 import com.easyhome.senior.domain.model.BrightnessMode
+import com.easyhome.senior.domain.model.CalendarSwipe
+import com.easyhome.senior.domain.model.CalendarTarget
 import com.easyhome.senior.domain.model.AppTheme
 import com.easyhome.senior.domain.model.ButtonPalette
 import com.easyhome.senior.domain.model.HomeButton
@@ -284,6 +286,8 @@ class AdminViewModel(private val container: AppContainer) : ViewModel() {
     fun setOverlayPosition(position: OverlayPosition) = updateConfig { it.copy(overlayPosition = position) }
     fun setColumns(columns: Int) = updateConfig { it.copy(columns = columns) }
     fun setRowsPerPage(rows: Int) = updateConfig { it.copy(rowsPerPage = rows) }
+    fun setCalendarSwipe(swipe: CalendarSwipe) = updateConfig { it.copy(calendarSwipe = swipe) }
+    fun setCalendarTarget(target: CalendarTarget) = updateConfig { it.copy(calendarTarget = target) }
 
     fun setBrightnessMode(mode: BrightnessMode) = updateConfigAndApplyBrightness { it.copy(brightnessMode = mode) }
     fun setBrightnessLevel(level: Int) = updateConfigAndApplyBrightness { it.copy(brightnessLevel = level) }

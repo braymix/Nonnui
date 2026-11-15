@@ -8,6 +8,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
@@ -22,6 +25,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.easyhome.senior.di.appContainer
+import com.easyhome.senior.domain.model.CalendarSwipe
+import com.easyhome.senior.domain.model.CalendarTarget
 import com.easyhome.senior.domain.model.LauncherConfig
 import com.easyhome.senior.service.OverlayService
 import com.easyhome.senior.system.LaunchResult
@@ -37,6 +42,9 @@ class MainActivity : ComponentActivity() {
     /** Visibilità della domanda anti-errore; azzerata ad ogni pressione del tasto Home. */
     private var showAdminGate by mutableStateOf(false)
 
+    /** Agenda semplificata aperta con lo swipe. */
+    private var showAgenda by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
@@ -49,7 +57,9 @@ class MainActivity : ComponentActivity() {
             val state by viewModel.uiState.collectAsStateWithLifecycle()
 
             // Il tasto/gesto Indietro non deve mai far uscire l'anziano dalla Home.
-            BackHandler(enabled = true) { viewModel.dismissMessage() }
+            BackHandler(enabled = true) {
+                if (showAgenda) showAgenda = false else viewModel.dismissMessage()
+            }
 
             // Luminosità adattiva/fissa: riapplicata ogni volta che cambia la configurazione.
             LaunchedEffect(state.isLoaded, state.config.brightnessMode, state.config.brightnessLevel) {
@@ -70,6 +80,16 @@ class MainActivity : ComponentActivity() {
                         val result = container.actionLauncher.launch(this@MainActivity, button)
                         if (result is LaunchResult.Failure) viewModel.showMessage(result.message)
                     },
+                    onCalendarSwipe = {
+                        container.feedbackManager.buttonFeedback(state.config)
+                        when (state.config.calendarTarget) {
+                            CalendarTarget.SYSTEM_APP -> openSystemCalendar()
+                            CalendarTarget.AGENDA -> {
+                                viewModel.loadAgenda()
+                                showAgenda = true
+                            }
+                        }
+                    },
                     onAdminHoldCompleted = {
                         container.feedbackManager.vibrate(state.config.vibration, short = false)
                         showAdminGate = true
@@ -78,6 +98,29 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.safeDrawing),
                 )
+                val fromLeft = state.config.calendarSwipe != CalendarSwipe.FROM_RIGHT
+                AnimatedVisibility(
+                    visible = showAgenda,
+                    enter = slideInHorizontally { width -> if (fromLeft) -width else width },
+                    exit = slideOutHorizontally { width -> if (fromLeft) -width else width },
+                ) {
+                    val agenda by viewModel.agenda.collectAsStateWithLifecycle()
+                    AgendaScreen(
+                        state = agenda,
+                        fontSizeSp = state.config.fontSizeSp,
+                        // Si chiude scorrendo nel verso opposto a quello di apertura.
+                        closeTowardRight = !fromLeft,
+                        onOpenSystemCalendar = {
+                            container.feedbackManager.buttonFeedback(state.config)
+                            openSystemCalendar()
+                        },
+                        onClose = {
+                            container.feedbackManager.buttonFeedback(state.config)
+                            showAgenda = false
+                        },
+                        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+                    )
+                }
                 if (showAdminGate) {
                     AdminGateDialog(
                         onDismiss = { showAdminGate = false },
@@ -103,8 +146,14 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         // Premuto "Home" (o "Torna all'inizio") mentre si è già sulla Home: stato pulito.
         showAdminGate = false
+        showAgenda = false
         viewModel.dismissMessage()
         viewModel.resetPage()
+    }
+
+    private fun openSystemCalendar() {
+        val result = container.actionLauncher.openSystemCalendar(this)
+        if (result is LaunchResult.Failure) viewModel.showMessage(result.message)
     }
 
     private fun applyBrightness(config: LauncherConfig) {

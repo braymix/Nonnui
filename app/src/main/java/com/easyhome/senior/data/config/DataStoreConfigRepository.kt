@@ -36,6 +36,8 @@ class DataStoreConfigRepository(context: Context) : ConfigRepository {
         val ROWS_PER_PAGE = intPreferencesKey("rows_per_page")
         val BRIGHTNESS_MODE = stringPreferencesKey("brightness_mode")
         val BRIGHTNESS_LEVEL = intPreferencesKey("brightness_level")
+        val CALENDAR_SWIPE = stringPreferencesKey("calendar_swipe")
+        val CALENDAR_TARGET = stringPreferencesKey("calendar_target")
     }
 
     override val config: Flow<LauncherConfig> = dataStore.data
@@ -68,6 +70,8 @@ class DataStoreConfigRepository(context: Context) : ConfigRepository {
             rowsPerPage = this[Keys.ROWS_PER_PAGE] ?: defaults.rowsPerPage,
             brightnessMode = enumValueOrDefault(this[Keys.BRIGHTNESS_MODE], defaults.brightnessMode),
             brightnessLevel = this[Keys.BRIGHTNESS_LEVEL] ?: defaults.brightnessLevel,
+            calendarSwipe = enumValueOrDefault(this[Keys.CALENDAR_SWIPE], defaults.calendarSwipe),
+            calendarTarget = enumValueOrDefault(this[Keys.CALENDAR_TARGET], defaults.calendarTarget),
         ).sanitized()
     }
 
@@ -83,6 +87,8 @@ class DataStoreConfigRepository(context: Context) : ConfigRepository {
         this[Keys.ROWS_PER_PAGE] = config.rowsPerPage
         this[Keys.BRIGHTNESS_MODE] = config.brightnessMode.name
         this[Keys.BRIGHTNESS_LEVEL] = config.brightnessLevel
+        this[Keys.CALENDAR_SWIPE] = config.calendarSwipe.name
+        this[Keys.CALENDAR_TARGET] = config.calendarTarget.name
     }
 
     private inline fun <reified T : Enum<T>> enumValueOrDefault(name: String?, default: T): T =

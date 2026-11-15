@@ -1,5 +1,9 @@
 package com.easyhome.senior.ui.admin
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -36,6 +40,8 @@ import androidx.compose.ui.unit.sp
 import com.easyhome.senior.di.appContainer
 import com.easyhome.senior.domain.model.AppTheme
 import com.easyhome.senior.domain.model.BrightnessMode
+import com.easyhome.senior.domain.model.CalendarSwipe
+import com.easyhome.senior.domain.model.CalendarTarget
 import com.easyhome.senior.system.safeStartActivity
 import com.easyhome.senior.domain.model.LauncherConfig
 import com.easyhome.senior.domain.model.OverlayPosition
@@ -69,6 +75,9 @@ fun AppearanceStep(state: AdminUiState, viewModel: AdminViewModel, iconLoader: I
                 "${config.pageCount} " + (if (config.pageCount == 1) "schermata." else "schermate, sfogliabili con AVANTI / INDIETRO."),
             style = MaterialTheme.typography.bodyMedium,
         )
+
+        HorizontalDivider()
+        CalendarSwipeSection(config, state.permissions.hasCalendarPermission, viewModel)
 
         HorizontalDivider()
         SectionTitle("Luminosità schermo")
@@ -248,3 +257,65 @@ private fun RowScope.ToggleButton(text: String, selected: Boolean, onClick: () -
     }
 }
 
+
+@Composable
+private fun CalendarSwipeSection(config: LauncherConfig, hasCalendarPermission: Boolean, viewModel: AdminViewModel) {
+    val requestCalendar = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        viewModel.refreshPermissions()
+    }
+    SectionTitle("Calendario con swipe")
+    Text(
+        "Scorrendo il dito sulla Home si apre il calendario. Disattivalo se l'anziano tende a trascinare il dito per sbaglio.",
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        ToggleButton("NO", config.calendarSwipe == CalendarSwipe.OFF) { viewModel.setCalendarSwipe(CalendarSwipe.OFF) }
+        ToggleButton("DA SINISTRA", config.calendarSwipe == CalendarSwipe.FROM_LEFT) {
+            viewModel.setCalendarSwipe(CalendarSwipe.FROM_LEFT)
+        }
+        ToggleButton("DA DESTRA", config.calendarSwipe == CalendarSwipe.FROM_RIGHT) {
+            viewModel.setCalendarSwipe(CalendarSwipe.FROM_RIGHT)
+        }
+    }
+    if (config.calendarSwipe != CalendarSwipe.OFF) {
+        Text(
+            if (config.calendarSwipe == CalendarSwipe.FROM_LEFT) {
+                "Gesto: dito da sinistra verso destra (circa un terzo dello schermo)."
+            } else {
+                "Gesto: dito da destra verso sinistra (circa un terzo dello schermo)."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+        )
+        Text("Cosa si apre", style = MaterialTheme.typography.labelLarge)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            ToggleButton("APP CALENDARIO", config.calendarTarget == CalendarTarget.SYSTEM_APP) {
+                viewModel.setCalendarTarget(CalendarTarget.SYSTEM_APP)
+            }
+            ToggleButton("AGENDA GRANDE", config.calendarTarget == CalendarTarget.AGENDA) {
+                viewModel.setCalendarTarget(CalendarTarget.AGENDA)
+                if (!hasCalendarPermission) requestCalendar.launch(Manifest.permission.READ_CALENDAR)
+            }
+        }
+        Text(
+            if (config.calendarTarget == CalendarTarget.SYSTEM_APP) {
+                "Apre il calendario del telefono (es. Google Calendar) sulla data di oggi."
+            } else {
+                "Mostra a caratteri giganti gli impegni dei prossimi 7 giorni presi dal calendario del telefono, " +
+                    "con i tasti \"Calendario del telefono\" e \"Torna all'inizio\"."
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (config.calendarTarget == CalendarTarget.AGENDA && !hasCalendarPermission) {
+            Text(
+                "Serve il permesso Calendario per leggere gli impegni.",
+                color = MaterialTheme.colorScheme.error,
+                fontWeight = FontWeight.Bold,
+            )
+            Button(
+                onClick = { requestCalendar.launch(Manifest.permission.READ_CALENDAR) },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("CONCEDI PERMESSO CALENDARIO") }
+        }
+    }
+}

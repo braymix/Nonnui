@@ -8,6 +8,8 @@ pulsante galleggiante **"🏠 TORNA ALL'INIZIO"** e configuratore guidato a prov
 - **Scorciatoie intelligenti**: chiamata, videochiamata e chiamata WhatsApp, chat WhatsApp o Telegram di
   un contatto, gruppi tramite link di invito, e chat/gruppi da "Aggiungi scorciatoia" di WhatsApp e Telegram.
 - **Luminosità** del telefono: come da sistema, **adattiva** (sensore) o fissa.
+- **Calendario con swipe** (opzionale, da sinistra o da destra): apre l'app calendario del telefono oppure
+  un'**agenda grande** con gli impegni dei prossimi 7 giorni letti dal calendario di sistema.
 - Temi a colori pieni (chiaro, scuro, alto contrasto): nessun colore pastello.
 
 - Kotlin 2.0 · Jetpack Compose (Material 3) · MVVM + Clean Architecture (`StateFlow` immutabili)
@@ -65,6 +67,9 @@ app/src/main/
     │       ├── PermissionsStep.kt          3. Semaforo permessi (aggiornato a ON_RESUME)
     │       ├── BackupStep.kt               4. Export/import JSON (copia, condividi, file)
     │       └── LivePreview.kt              HomeScreen reale rimpicciolita
+    ├── ui/home/AgendaScreen.kt         Agenda grande (OGGI / DOMANI / giorni) + tasti grandi
+    ├── data/calendar/AndroidCalendarRepository.kt  Impegni da CalendarContract.Instances
+    ├── ui/common/HorizontalSwipeModifier.kt  Swipe deliberato che annulla il tocco sul pulsante
     ├── ui/pin/ConfirmPinShortcutActivity.kt  Riceve "Aggiungi scorciatoia" da WhatsApp/Telegram
     ├── system/BrightnessController.kt  Luminosità adattiva/fissa (WRITE_SETTINGS) + ripiego sulla finestra
     ├── service/OverlayService.kt           Pulsante "TORNA ALL'INIZIO" (TYPE_APPLICATION_OVERLAY)
@@ -102,6 +107,9 @@ Ogni modifica è salvata immediatamente: si può uscire in qualsiasi momento.
 - **Indietro** è intercettato con `BackHandler`. Android non consente a un'app normale di disabilitare i
   gesti Home/Recenti; essendo però il launcher predefinito, Home riporta sempre qui. La barra di stato è
   nascosta per ridurre le aperture accidentali della tendina.
+- **Swipe del calendario**: disattivato di default. Scatta solo con un gesto ampio (30% della larghezza) e
+  quasi orizzontale; quando scatta, il pulsante sotto al dito non viene premuto. Con TalkBack è disponibile
+  l'azione "Apri calendario". L'agenda si chiude con il tasto grande, con Indietro o con lo swipe opposto.
 - **Pagine**: con più pulsanti di quanti ne entrino (colonne × righe) la Home si sfoglia a pagine; il tasto
   Home/"Torna all'inizio" riporta sempre alla prima.
 - **Tocco**: l'azione parte al rilascio del dito se questo è dentro il pulsante allargato di 48 dp, quindi

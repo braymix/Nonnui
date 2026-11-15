@@ -27,6 +27,8 @@ object ConfigJsonSerializer {
         put("rowsPerPage", config.rowsPerPage)
         put("brightnessMode", config.brightnessMode.name)
         put("brightnessLevel", config.brightnessLevel)
+        put("calendarSwipe", config.calendarSwipe.name)
+        put("calendarTarget", config.calendarTarget.name)
         put("buttons", buttonsToJsonArray(config.buttons))
     }.toString(2)
 
@@ -54,6 +56,8 @@ object ConfigJsonSerializer {
                 rowsPerPage = root.optInt("rowsPerPage", defaults.rowsPerPage),
                 brightnessMode = enumOrDefault(root.optString("brightnessMode"), defaults.brightnessMode),
                 brightnessLevel = root.optInt("brightnessLevel", defaults.brightnessLevel),
+                calendarSwipe = enumOrDefault(root.optString("calendarSwipe"), defaults.calendarSwipe),
+                calendarTarget = enumOrDefault(root.optString("calendarTarget"), defaults.calendarTarget),
             ).sanitized()
         } catch (e: JSONException) {
             throw IllegalArgumentException("Il backup è danneggiato: ${e.message}")

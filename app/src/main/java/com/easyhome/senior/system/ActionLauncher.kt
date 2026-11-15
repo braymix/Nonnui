@@ -2,12 +2,14 @@ package com.easyhome.senior.system
 
 import android.Manifest
 import android.content.ActivityNotFoundException
+import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Process
+import android.provider.CalendarContract
 import androidx.core.content.ContextCompat
 import com.easyhome.senior.domain.model.ActionType
 import com.easyhome.senior.domain.model.HomeButton
@@ -141,6 +143,20 @@ class ActionLauncher(
                 is LaunchResult.Failure -> LaunchResult.Failure("SCORCIATOIA NON PIÙ DISPONIBILE")
             }
         }
+    }
+
+    // ---- Calendario di sistema -------------------------------------------------------------
+
+    /** Apre l'app calendario del telefono sulla data di oggi. */
+    fun openSystemCalendar(context: Context): LaunchResult {
+        val todayUri = CalendarContract.CONTENT_URI.buildUpon().appendPath("time").also {
+            ContentUris.appendId(it, System.currentTimeMillis())
+        }.build()
+        val today = Intent(Intent.ACTION_VIEW, todayUri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        if (start(context, today, "") is LaunchResult.Success) return LaunchResult.Success
+        val selector = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return start(context, selector, "NESSUN CALENDARIO SUL TELEFONO")
     }
 
     // ---- Utilità ---------------------------------------------------------------------------

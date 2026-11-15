@@ -50,6 +50,26 @@ enum class BrightnessMode {
     FIXED,
 }
 
+/** Swipe orizzontale sulla Home che apre il calendario. */
+enum class CalendarSwipe {
+    OFF,
+
+    /** Il calendario entra da sinistra: si scorre il dito verso destra. */
+    FROM_LEFT,
+
+    /** Il calendario entra da destra: si scorre il dito verso sinistra. */
+    FROM_RIGHT,
+}
+
+/** Cosa apre lo swipe del calendario. */
+enum class CalendarTarget {
+    /** L'app calendario del telefono (Google Calendar, Samsung Calendar, ...). */
+    SYSTEM_APP,
+
+    /** Agenda semplificata a caratteri giganti con gli impegni del calendario di sistema. */
+    AGENDA,
+}
+
 /** Un pulsante gigante della Home. Modello immutabile. */
 data class HomeButton(
     val id: String,
@@ -84,6 +104,8 @@ data class LauncherConfig(
     val brightnessMode: BrightnessMode = BrightnessMode.SYSTEM,
     /** Percentuale 10-100, usata con [BrightnessMode.FIXED]. */
     val brightnessLevel: Int = DEFAULT_BRIGHTNESS,
+    val calendarSwipe: CalendarSwipe = CalendarSwipe.OFF,
+    val calendarTarget: CalendarTarget = CalendarTarget.SYSTEM_APP,
 ) {
     val isFull: Boolean get() = buttons.size >= MAX_BUTTONS
     val pageSize: Int get() = columns * rowsPerPage

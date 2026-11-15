@@ -134,6 +134,15 @@ fun PermissionsStep(state: AdminUiState, viewModel: AdminViewModel) {
                 PermissionAction("IMPOSTAZIONI APP", false) { context.safeStartActivity(checker.appDetailsIntent()) },
             ),
         )
+        PermissionCard(
+            title = "8. Calendario (agenda grande)",
+            description = "Serve solo se lo swipe apre l'AGENDA GRANDE: permette di leggere gli impegni del telefono.",
+            granted = p.hasCalendarPermission,
+            actions = listOf(
+                PermissionAction("CONCEDI", true) { requestPermission.launch(Manifest.permission.READ_CALENDAR) },
+                PermissionAction("IMPOSTAZIONI APP", false) { context.safeStartActivity(checker.appDetailsIntent()) },
+            ),
+        )
     }
 }
 

@@ -43,7 +43,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -56,10 +58,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.sp
 import com.easyhome.senior.domain.model.ActionType
+import com.easyhome.senior.domain.model.CalendarSwipe
 import com.easyhome.senior.domain.model.HomeButton
 import com.easyhome.senior.system.ActionLauncher
 import com.easyhome.senior.system.ContactResolver
 import com.easyhome.senior.ui.common.AutoSizeText
+import com.easyhome.senior.ui.common.horizontalSwipe
 import com.easyhome.senior.ui.common.VideoCallIcon
 import com.easyhome.senior.ui.common.rememberAppIcon
 import com.easyhome.senior.ui.common.seniorTap
@@ -82,9 +86,27 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     interactive: Boolean = true,
     onPageChange: (Int) -> Unit = {},
+    onCalendarSwipe: () -> Unit = {},
 ) {
     val colors = SeniorTheme.colors
-    Box(modifier.fillMaxSize().background(colors.background)) {
+    val swipe = state.config.calendarSwipe
+    val swipeEnabled = interactive && swipe != CalendarSwipe.OFF
+    Box(
+        modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .horizontalSwipe(
+                enabled = swipeEnabled,
+                towardRight = swipe == CalendarSwipe.FROM_LEFT,
+                onSwipe = onCalendarSwipe,
+            )
+            .semantics {
+                // Con TalkBack lo swipe è sostituito da un'azione esplicita.
+                if (swipeEnabled) {
+                    customActions = listOf(CustomAccessibilityAction("Apri calendario") { onCalendarSwipe(); true })
+                }
+            },
+    ) {
         if (!state.isLoaded) return@Box
         Column(Modifier.fillMaxSize()) {
             StatusTopBar(

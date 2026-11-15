@@ -10,6 +10,8 @@
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <!-- Lettura righe WhatsApp in rubrica per la videochiamata diretta -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Agenda grande: lettura impegni dal calendario di sistema -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
     <!-- Pulsante galleggiante "Torna all'inizio" -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -54,6 +56,14 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="tg" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_CALENDAR" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="content" android:host="com.android.calendar" />
         </intent>
         <package android:name="com.whatsapp" />
         <package android:name="com.whatsapp.w4b" />
