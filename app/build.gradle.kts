@@ -16,6 +16,17 @@ android {
         versionName = "1.0.0"
     }
 
+    // Chiave di debug fissa (versionata): le build della CI sono sempre firmate con la stessa
+    // chiave, quindi ogni nuovo APK si installa SOPRA il precedente senza perdere la configurazione.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
